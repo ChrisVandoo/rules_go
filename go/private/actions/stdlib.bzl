@@ -15,16 +15,22 @@
 load(
     "//go/private:common.bzl",
     "COVERAGE_OPTIONS_DENYLIST",
+    "GO_TOOLCHAIN_LABEL",
+    "SUPPORTS_PATH_MAPPING_REQUIREMENT",
 )
 load(
-    "//go/private:providers.bzl",
-    "GoStdLib",
+    "//go/private:context.bzl",
+    "new_go_info",
 )
 load(
     "//go/private:mode.bzl",
     "LINKMODE_NORMAL",
     "extldflags_from_cc_toolchain",
-    "link_mode_args",
+    "link_mode_arg",
+)
+load(
+    "//go/private:providers.bzl",
+    "GoStdLib",
 )
 load("//go/private:sdk.bzl", "parse_version")
 load("//go/private/actions:utils.bzl", "quote_opts")
@@ -36,18 +42,11 @@ def emit_stdlib(go):
     Otherwise, the standard library will be compiled for the target.
 
     Returns:
-        A list of providers containing GoLibrary and GoSource. GoSource.stdlib
-        will point to a new GoStdLib.
+        A list of providers containing GoInfo and GoStdLib.
     """
-    library = go.new_library(go, resolver = _stdlib_library_to_source)
-    source = go.library_to_source(go, {}, library, False)
-    return [source, library]
-
-def _stdlib_library_to_source(go, _attr, source, _merge):
-    if _should_use_sdk_stdlib(go):
-        source["stdlib"] = _sdk_stdlib(go)
-    else:
-        source["stdlib"] = _build_stdlib(go)
+    go_info = new_go_info(go, {}, coverage_instrumented = False)
+    stdlib = _sdk_stdlib(go) if _should_use_sdk_stdlib(go) else _build_stdlib(go)
+    return [go_info, stdlib]
 
 def _should_use_sdk_stdlib(go):
     version = parse_version(go.sdk.version)
@@ -61,22 +60,59 @@ def _should_use_sdk_stdlib(go):
             not go.mode.msan and
             not go.mode.pure and
             not go.mode.gc_goopts and
-            go.mode.link == LINKMODE_NORMAL)
+            go.mode.linkmode == LINKMODE_NORMAL)
 
 def _build_stdlib_list_json(go):
+    sdk = go.sdk
+
     out = go.declare_file(go, "stdlib.pkg.json")
+    cache_dir = go.declare_directory(go, "gocache")
     args = go.builder_args(go, "stdliblist")
-    args.add("-sdk", go.sdk.root_file.dirname)
+    args.add("-sdk", sdk.root_file.dirname)
     args.add("-out", out)
+    args.add("-cache", cache_dir.path)
+
+    inputs_direct = [sdk.go]
+    inputs_transitive = [sdk.headers, sdk.srcs, sdk.libs, sdk.tools]
+    if not go.mode.pure:
+        inputs_transitive.append(go.cc_toolchain_files)
+
     go.actions.run(
-        inputs = go.sdk_files,
-        outputs = [out],
+        inputs = depset(inputs_direct, transitive = inputs_transitive),
+        outputs = [out, cache_dir],
         mnemonic = "GoStdlibList",
         executable = go.toolchain._builder,
         arguments = [args],
-        env = go.env,
+        env = _build_env(go),
+        toolchain = GO_TOOLCHAIN_LABEL,
     )
     return out
+
+def _build_env(go):
+    env = go.env
+
+    if go.mode.pure:
+        env.update({"CGO_ENABLED": "0"})
+        return env
+
+    # NOTE(#2545): avoid unnecessary dynamic link
+    # go std library doesn't use C++, so should not have -lstdc++
+    # Also drop coverage flags as nothing in the stdlib is compiled with
+    # coverage - we disable it for all CGo code anyway.
+    # NOTE(#3590): avoid forcing static linking.
+    ldflags = [
+        option
+        for option in extldflags_from_cc_toolchain(go)
+        if option not in ("-lstdc++", "-lc++", "-static") and option not in COVERAGE_OPTIONS_DENYLIST
+    ]
+    env.update({
+        "CGO_ENABLED": "1",
+        "CC": go.cgo_tools.c_compiler_path,
+        "CGO_CFLAGS": " ".join(go.cgo_tools.c_compile_options),
+        "CGO_LDFLAGS": " ".join(ldflags),
+    })
+
+    return env
 
 def _sdk_stdlib(go):
     return GoStdLib(
@@ -85,53 +121,51 @@ def _sdk_stdlib(go):
         root_file = go.sdk.root_file,
     )
 
+def _dirname(file):
+    return file.dirname
+
 def _build_stdlib(go):
     pkg = go.declare_directory(go, path = "pkg")
-    args = go.builder_args(go, "stdlib")
-    args.add("-out", pkg.dirname)
+    args = go.builder_args(go, "stdlib", use_path_mapping = True)
+
+    # Use a file rather than pkg.dirname as the latter is just a string and thus
+    # not subject to path mapping.
+    args.add_all("-out", [pkg], map_each = _dirname, expand_directories = False)
     if go.mode.race:
         args.add("-race")
-    args.add_all(go.sdk.experiments, before_each = "-experiment")
+    if go.mode.msan:
+        args.add("-msan")
     args.add("-package", "std")
     if not go.mode.pure:
         args.add("-package", "runtime/cgo")
-    args.add_all(link_mode_args(go.mode))
-    env = go.env
-    if go.mode.pure:
-        env.update({"CGO_ENABLED": "0"})
-    else:
-        # NOTE(#2545): avoid unnecessary dynamic link
-        # go std library doesn't use C++, so should not have -lstdc++
-        # Also drop coverage flags as nothing in the stdlib is compiled with
-        # coverage - we disable it for all CGo code anyway.
-        ldflags = [
-            option
-            for option in extldflags_from_cc_toolchain(go)
-            if option not in ("-lstdc++", "-lc++") and option not in COVERAGE_OPTIONS_DENYLIST
-        ]
-        env.update({
-            "CGO_ENABLED": "1",
-            "CC": go.cgo_tools.c_compiler_path,
-            "CGO_CFLAGS": " ".join(go.cgo_tools.c_compile_options),
-            "CGO_LDFLAGS": " ".join(ldflags),
-        })
+
+    link_mode_flag = link_mode_arg(go.mode)
+    if link_mode_flag:
+        args.add(link_mode_flag)
+
     args.add("-gcflags", quote_opts(go.mode.gc_goopts))
-    inputs = (go.sdk.srcs +
-              go.sdk.headers +
-              go.sdk.tools +
-              [go.sdk.go, go.sdk.package_list, go.sdk.root_file] +
-              go.crosstool)
+
+    sdk = go.sdk
+    inputs_direct = [sdk.go, sdk.package_list, sdk.root_file]
+    inputs_transitive = [sdk.headers, sdk.srcs, sdk.tools, go.cc_toolchain_files]
+
+    if go.mode.pgoprofile:
+        args.add("-pgoprofile", go.mode.pgoprofile)
+        inputs_direct.append(go.mode.pgoprofile)
+
     outputs = [pkg]
     go.actions.run(
-        inputs = inputs,
+        inputs = depset(direct = inputs_direct, transitive = inputs_transitive),
         outputs = outputs,
         mnemonic = "GoStdlib",
         executable = go.toolchain._builder,
         arguments = [args],
-        env = env,
+        env = _build_env(go),
+        toolchain = GO_TOOLCHAIN_LABEL,
+        execution_requirements = SUPPORTS_PATH_MAPPING_REQUIREMENT,
     )
     return GoStdLib(
         _list_json = _build_stdlib_list_json(go),
-        libs = [pkg],
+        libs = depset([pkg]),
         root_file = pkg,
     )

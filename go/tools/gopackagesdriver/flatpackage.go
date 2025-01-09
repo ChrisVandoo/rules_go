@@ -15,16 +15,18 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"go/parser"
 	"go/token"
+	"io"
 	"os"
 	"strconv"
 	"strings"
 )
 
-type ResolvePkgFunc func(importPath string) *FlatPackage
+type ResolvePkgFunc func(importPath string) string
 
 // Copy and pasted from golang.org/x/tools/go/packages
 type FlatPackagesError struct {
@@ -89,6 +91,7 @@ func WalkFlatPackagesFromJSON(jsonFile string, onPkg PackageFunc) error {
 		if err := decoder.Decode(&pkg); err != nil {
 			return fmt.Errorf("unable to decode package in %s: %w", f.Name(), err)
 		}
+
 		onPkg(pkg)
 	}
 	return nil
@@ -109,27 +112,98 @@ func (fp *FlatPackage) FilterFilesForBuildTags() {
 	fp.CompiledGoFiles = filterSourceFilesForTags(fp.CompiledGoFiles)
 }
 
+func (fp *FlatPackage) filterTestSuffix(files []string) (err error, testFiles []string, xTestFiles, nonTestFiles []string) {
+	for _, filename := range files {
+		if strings.HasSuffix(filename, "_test.go") {
+			fset := token.NewFileSet()
+			f, err := parser.ParseFile(fset, filename, nil, parser.PackageClauseOnly)
+			if err != nil {
+				return err, nil, nil, nil
+			}
+			if f.Name.Name == fp.Name {
+				testFiles = append(testFiles, filename)
+			} else {
+				xTestFiles = append(xTestFiles, filename)
+			}
+		} else {
+			nonTestFiles = append(nonTestFiles, filename)
+		}
+	}
+	return
+}
+
+func (fp *FlatPackage) MoveTestFiles() *FlatPackage {
+	err, tgf, xtgf, gf := fp.filterTestSuffix(fp.GoFiles)
+	if err != nil {
+		return nil
+	}
+
+	fp.GoFiles = append(gf, tgf...)
+
+	err, ctgf, cxtgf, cgf := fp.filterTestSuffix(fp.CompiledGoFiles)
+	if err != nil {
+		return nil
+	}
+
+	fp.CompiledGoFiles = append(cgf, ctgf...)
+
+	if len(xtgf) == 0 && len(cxtgf) == 0 {
+		return nil
+	}
+
+	newImports := make(map[string]string, len(fp.Imports))
+	for k, v := range fp.Imports {
+		newImports[k] = v
+	}
+
+	newImports[fp.PkgPath] = fp.ID
+
+	// Clone package, only xtgf files
+	return &FlatPackage{
+		ID:              fp.ID + "_xtest",
+		Name:            fp.Name + "_test",
+		PkgPath:         fp.PkgPath + "_test",
+		Imports:         newImports,
+		Errors:          fp.Errors,
+		GoFiles:         append([]string{}, xtgf...),
+		CompiledGoFiles: append([]string{}, cxtgf...),
+		OtherFiles:      fp.OtherFiles,
+		ExportFile:      fp.ExportFile,
+		Standard:        fp.Standard,
+	}
+}
+
 func (fp *FlatPackage) IsStdlib() bool {
 	return fp.Standard
 }
 
-func (fp *FlatPackage) ResolveImports(resolve ResolvePkgFunc) {
+// ResolveImports resolves imports for non-stdlib packages and integrates file overlays
+// to allow modification of package imports without modifying disk files.
+func (fp *FlatPackage) ResolveImports(resolve ResolvePkgFunc, overlays map[string][]byte) error {
 	// Stdlib packages are already complete import wise
 	if fp.IsStdlib() {
-		return
+		return nil
 	}
 
 	fset := token.NewFileSet()
 
 	for _, file := range fp.CompiledGoFiles {
-		f, err := parser.ParseFile(fset, file, nil, parser.ImportsOnly)
+		// Only assign overlayContent when an overlay for the file exists, since ParseFile checks by type.
+		// If overlay is assigned directly from the map, it will have []byte as type
+		// Empty []byte types are parsed into io.EOF
+		var overlayReader io.Reader
+		if content, ok := overlays[file]; ok {
+			overlayReader = bytes.NewReader(content)
+		}
+		f, err := parser.ParseFile(fset, file, overlayReader, parser.ImportsOnly)
 		if err != nil {
-			continue
+			return err
 		}
 		// If the name is not provided, fetch it from the sources
 		if fp.Name == "" {
 			fp.Name = f.Name.Name
 		}
+
 		for _, rawImport := range f.Imports {
 			imp, err := strconv.Unquote(rawImport.Path.Value)
 			if err != nil {
@@ -142,14 +216,14 @@ func (fp *FlatPackage) ResolveImports(resolve ResolvePkgFunc) {
 			if _, ok := fp.Imports[imp]; ok {
 				continue
 			}
-			if pkg := resolve(imp); pkg != nil {
-				if fp.Imports == nil {
-					fp.Imports = map[string]string{}
-				}
-				fp.Imports[imp] = pkg.ID
+
+			if pkgID := resolve(imp); pkgID != "" {
+				fp.Imports[imp] = pkgID
 			}
 		}
 	}
+
+	return nil
 }
 
 func (fp *FlatPackage) IsRoot() bool {

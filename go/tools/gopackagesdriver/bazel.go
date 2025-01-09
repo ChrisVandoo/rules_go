@@ -26,6 +26,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 )
 
@@ -34,10 +35,13 @@ const (
 )
 
 type Bazel struct {
-	bazelBin          string
-	workspaceRoot     string
-	bazelStartupFlags []string
-	info              map[string]string
+	bazelBin              string
+	workspaceRoot         string
+	buildWorkingDirectory string
+	bazelCommonFlags      []string
+	bazelStartupFlags     []string
+	info                  map[string]string
+	version               bazelVersion
 }
 
 // Minimal BEP structs to access the build outputs
@@ -50,11 +54,13 @@ type BEPNamedSet struct {
 	} `json:"namedSetOfFiles"`
 }
 
-func NewBazel(ctx context.Context, bazelBin, workspaceRoot string, bazelStartupFlags []string) (*Bazel, error) {
+func NewBazel(ctx context.Context, bazelBin, workspaceRoot string, buildWorkingDirectory string, bazelCommonFlags []string, bazelStartupFlags []string) (*Bazel, error) {
 	b := &Bazel{
-		bazelBin:          bazelBin,
-		workspaceRoot:     workspaceRoot,
-		bazelStartupFlags: bazelStartupFlags,
+		bazelBin:              bazelBin,
+		workspaceRoot:         workspaceRoot,
+		buildWorkingDirectory: buildWorkingDirectory,
+		bazelCommonFlags:      bazelCommonFlags,
+		bazelStartupFlags:     bazelStartupFlags,
 	}
 	if err := b.fillInfo(ctx); err != nil {
 		return nil, fmt.Errorf("unable to query bazel info: %w", err)
@@ -73,15 +79,21 @@ func (b *Bazel) fillInfo(ctx context.Context) error {
 		parts := strings.SplitN(strings.TrimSpace(scanner.Text()), ":", 2)
 		b.info[strings.TrimSpace(parts[0])] = strings.TrimSpace(parts[1])
 	}
+	release := strings.Split(b.info["release"], " ")
+	if len(release) == 2 {
+		if version, ok := parseBazelVersion(release[1]); ok {
+			b.version = version
+		}
+	}
 	return nil
 }
 
 func (b *Bazel) run(ctx context.Context, command string, args ...string) (string, error) {
-	defaultArgs := []string{
+	defaultArgs := append([]string{
 		command,
 		"--tool_tag=" + toolTag,
 		"--ui_actions_shown=0",
-	}
+	}, b.bazelCommonFlags...)
 	cmd := exec.CommandContext(ctx, b.bazelBin, concatStringsArrays(b.bazelStartupFlags, defaultArgs, args)...)
 	fmt.Fprintln(os.Stderr, "Running:", cmd.Args)
 	cmd.Dir = b.WorkspaceRoot()
@@ -122,6 +134,7 @@ func (b *Bazel) Build(ctx context.Context, args ...string) ([]string, error) {
 		if err := decoder.Decode(&namedSet); err != nil {
 			return nil, fmt.Errorf("unable to decode %s: %w", jsonFile.Name(), err)
 		}
+
 		if namedSet.NamedSetOfFiles != nil {
 			for _, f := range namedSet.NamedSetOfFiles.Files {
 				fileUrl, err := url.Parse(f.URI)
@@ -154,10 +167,52 @@ func (b *Bazel) WorkspaceRoot() string {
 	return b.workspaceRoot
 }
 
+func (b *Bazel) BuildWorkingDirectory() string {
+	return b.buildWorkingDirectory
+}
+
 func (b *Bazel) ExecutionRoot() string {
 	return b.info["execution_root"]
 }
 
 func (b *Bazel) OutputBase() string {
 	return b.info["output_base"]
+}
+
+type bazelVersion [3]int
+
+func parseBazelVersion(raw string) (bazelVersion, bool) {
+	parts := strings.Split(raw, ".")
+	if len(parts) != 3 {
+		return [3]int{}, false
+	}
+	var version [3]int
+	for i, part := range parts {
+		v, err := strconv.Atoi(part)
+		if err != nil {
+			return [3]int{}, false
+		}
+		version[i] = v
+	}
+	return version, true
+}
+
+func (a bazelVersion) compare(b bazelVersion) int {
+	for i := 0; i < len(a); i++ {
+		if c := a[i] - b[i]; c != 0 {
+			return c
+		}
+	}
+	return 0
+}
+
+// isAtLeast returns true if a.compare(b) >= 0 (that is, if a is greater than
+// or equal to be) or if a is the zero value.
+//
+// Development versions of Bazel do not have valid version strings, not even a
+// prerelease, so parseBazelVersion fails and returns the zero value. If we
+// have such a version, we assume it's newer than whatever we're comparing
+// it with.
+func (a bazelVersion) isAtLeast(b bazelVersion) bool {
+	return a.compare(b) >= 0 || a == bazelVersion{}
 }

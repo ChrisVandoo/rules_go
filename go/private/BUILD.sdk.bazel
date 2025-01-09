@@ -1,8 +1,9 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_sdk")
+load("@io_bazel_rules_go//go/private:common.bzl", "RULES_GO_STDLIB_PREFIX")
+load("@io_bazel_rules_go//go/private:go_toolchain.bzl", "declare_go_toolchains")
 load("@io_bazel_rules_go//go/private/rules:binary.bzl", "go_tool_binary")
 load("@io_bazel_rules_go//go/private/rules:sdk.bzl", "package_list")
 load("@io_bazel_rules_go//go/private/rules:transition.bzl", "non_go_reset_target")
-load("@io_bazel_rules_go//go/private:go_toolchain.bzl", "declare_go_toolchains")
-load("@io_bazel_rules_go//go:def.bzl", "go_sdk")
 
 package(default_visibility = ["//visibility:public"])
 
@@ -22,7 +23,21 @@ filegroup(
 
 filegroup(
     name = "srcs",
-    srcs = glob(["src/**"]),
+    srcs = glob(
+        ["src/**/*"],
+        exclude = [
+            "src/**/*_test.go",
+            "src/**/testdata/**",
+            "src/cmd/**",
+            "src/log/slog/internal/benchmarks/**",
+            "src/log/slog/internal/slogtest/**",
+            "src/internal/obscuretestdata/**",
+            "src/internal/testpty/**",
+            "src/net/internal/socktest/**",
+            "src/reflect/internal/example*/**",
+            "src/runtime/internal/startlinetest/**",
+        ],
+    ),
 )
 
 filegroup(
@@ -30,7 +45,17 @@ filegroup(
     srcs = glob([
         "pkg/tool/**",
         "bin/gofmt*",
-    ]),
+    ]) + [
+        ":config",
+    ],
+)
+
+filegroup(
+    name = "config",
+    srcs = glob(
+        ["go.env*"],
+        allow_empty = True,
+    ),
 )
 
 go_sdk(
@@ -51,6 +76,8 @@ go_sdk(
 go_tool_binary(
     name = "builder",
     srcs = ["@io_bazel_rules_go//go/tools/builders:builder_srcs"],
+    exec_compatible_with = {exec_compatible_with},
+    ldflags = "-X main.rulesGoStdlibPrefix={}".format(RULES_GO_STDLIB_PREFIX),
     sdk = ":go_sdk",
 )
 
@@ -80,7 +107,9 @@ filegroup(
         "bin/go*",
         "src/**",
         "pkg/**",
-    ]),
+    ]) + [
+        ":config",
+    ],
 )
 
 exports_files(

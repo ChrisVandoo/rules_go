@@ -87,11 +87,10 @@ func (c *Cases) Version(v string) bool {
 const testMainTpl = `
 package main
 
-// This package must be initialized before packages being tested.
-// NOTE: this relies on the order of package initialization, which is the spec
-// is somewhat unclear about-- it only clearly guarantees that imported packages
-// are initialized before their importers, though in practice (and implied) it
-// also respects declaration order, which we're relying on here.
+// bzltestutil may change the current directory in its init function to emulate
+// 'go test' behavior. It must be initialized before user packages.
+// In Go 1.20 and earlier, this import declaration must appear before
+// imports of user packages. See comment in bzltestutil/init.go.
 import "github.com/bazelbuild/rules_go/go/tools/bzltestutil"
 
 import (
@@ -103,6 +102,7 @@ import (
 	"reflect"
 {{end}}
 	"strconv"
+	"strings"
 	"testing"
 	"testing/internal/testdeps"
 
@@ -146,6 +146,11 @@ func testsInShard() []testing.InternalTest {
 	if err != nil || totalShards <= 1 {
 		return allTests
 	}
+	file, err := os.Create(os.Getenv("TEST_SHARD_STATUS_FILE"))
+	if err != nil {
+		log.Fatalf("Failed to touch TEST_SHARD_STATUS_FILE: %v", err)
+	}
+	_ = file.Close()
 	shardIndex, err := strconv.Atoi(os.Getenv("TEST_SHARD_INDEX"))
 	if err != nil || shardIndex < 0 {
 		return allTests
@@ -162,14 +167,14 @@ func testsInShard() []testing.InternalTest {
 func main() {
 	if bzltestutil.ShouldWrap() {
 		err := bzltestutil.Wrap("{{.Pkgname}}")
+		exitCode := 0
 		if xerr, ok := err.(*exec.ExitError); ok {
-			os.Exit(xerr.ExitCode())
+			exitCode = xerr.ExitCode()
 		} else if err != nil {
 			log.Print(err)
-			os.Exit(bzltestutil.TestWrapperAbnormalExit)
-		} else {
-			os.Exit(0)
+			exitCode = bzltestutil.TestWrapperAbnormalExit
 		}
+		os.Exit(exitCode)
 	}
 
 	testDeps :=
@@ -185,7 +190,23 @@ func main() {
   {{end}}
 
 	if filter := os.Getenv("TESTBRIDGE_TEST_ONLY"); filter != "" {
-		flag.Lookup("test.run").Value.Set(filter)
+		filters := strings.Split(filter, ",")
+		var runTests []string
+		var skipTests []string
+
+		for _, f := range filters {
+			if strings.HasPrefix(f, "-") {
+				skipTests = append(skipTests, f[1:])
+			} else {
+				runTests = append(runTests, f)
+			}
+		}
+		if len(runTests) > 0 {
+			flag.Lookup("test.run").Value.Set(strings.Join(runTests, "|"))
+		}
+		if len(skipTests) > 0 {
+			flag.Lookup("test.skip").Value.Set(strings.Join(skipTests, "|"))
+		}
 	}
 
 	if failfast := os.Getenv("TESTBRIDGE_TEST_RUNNER_FAIL_FAST"); failfast != "" {
@@ -214,6 +235,12 @@ func main() {
 		}
 	}
 	{{end}}
+
+	testTimeout := os.Getenv("TEST_TIMEOUT")
+	if testTimeout != "" {
+		flag.Lookup("test.timeout").Value.Set(testTimeout+"s")
+		bzltestutil.RegisterTimeoutHandler()
+	}
 
 	{{if not .TestMain}}
 	res := m.Run()
@@ -245,7 +272,7 @@ func genTestMain(args []string) error {
 	if err := flags.Parse(args); err != nil {
 		return err
 	}
-	if err := goenv.checkFlags(); err != nil {
+	if err := goenv.checkFlagsAndSetGoroot(); err != nil {
 		return err
 	}
 	// Process import args

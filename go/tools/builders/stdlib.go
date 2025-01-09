@@ -31,18 +31,18 @@ func stdlib(args []string) error {
 	goenv := envFlags(flags)
 	out := flags.String("out", "", "Path to output go root")
 	race := flags.Bool("race", false, "Build in race mode")
+	msan := flags.Bool("msan", false, "Build in msan mode")
 	shared := flags.Bool("shared", false, "Build in shared mode")
 	dynlink := flags.Bool("dynlink", false, "Build in dynlink mode")
+	pgoprofile := flags.String("pgoprofile", "", "Build with pgo using the given pprof file")
 	var packages multiFlag
 	flags.Var(&packages, "package", "Packages to build")
-	var experiments multiFlag
-	flags.Var(&experiments, "experiment", "Go experiments to enable via GOEXPERIMENT")
 	var gcflags quoteMultiFlag
 	flags.Var(&gcflags, "gcflags", "Go compiler flags")
 	if err := flags.Parse(args); err != nil {
 		return err
 	}
-	if err := goenv.checkFlags(); err != nil {
+	if err := goenv.checkFlagsAndSetGoroot(); err != nil {
 		return err
 	}
 	goroot := os.Getenv("GOROOT")
@@ -82,7 +82,6 @@ You may need to use the flags --cpu=x64_windows --compiler=mingw-gcc.`)
 	os.Setenv("GO111MODULE", "off")
 
 	// Make sure we have an absolute path to the C compiler.
-	// TODO(#1357): also take absolute paths of includes and other paths in flags.
 	os.Setenv("CC", quotePathIfNeeded(abs(os.Getenv("CC"))))
 
 	// Ensure paths are absolute.
@@ -116,10 +115,6 @@ You may need to use the flags --cpu=x64_windows --compiler=mingw-gcc.`)
 	os.Setenv("CGO_LDFLAGS_ALLOW", b.String())
 	os.Setenv("GODEBUG", "installgoroot=all")
 
-	if len(experiments) > 0 {
-		os.Setenv("GOEXPERIMENT", strings.Join(experiments, ","))
-	}
-
 	// Build the commands needed to build the std library in the right mode
 	// NOTE: the go command stamps compiled .a files with build ids, which are
 	// cryptographic sums derived from the inputs. This prevents us from
@@ -135,6 +130,12 @@ You may need to use the flags --cpu=x64_windows --compiler=mingw-gcc.`)
 	asmflags := []string{"-trimpath", output}
 	if *race {
 		installArgs = append(installArgs, "-race")
+	}
+	if *msan {
+		installArgs = append(installArgs, "-msan")
+	}
+	if *pgoprofile != "" {
+		gcflags = append(gcflags, "-pgoprofile=" + abs(*pgoprofile))
 	}
 	if *shared {
 		gcflags = append(gcflags, "-shared")
@@ -161,9 +162,7 @@ You may need to use the flags --cpu=x64_windows --compiler=mingw-gcc.`)
 	installArgs = append(installArgs, "-ldflags="+allSlug+strings.Join(ldflags, " "))
 	installArgs = append(installArgs, "-asmflags="+allSlug+strings.Join(asmflags, " "))
 
-	// Modifying CGO flags to use only absolute path
-	// because go is having its own sandbox, all CGO flags must use absolute path
-	if err := absEnv(cgoEnvVars, cgoAbsEnvFlags); err != nil {
+	if err := absCCCompiler(cgoEnvVars, cgoAbsEnvFlags); err != nil {
 		return fmt.Errorf("error modifying cgo environment to absolute path: %v", err)
 	}
 

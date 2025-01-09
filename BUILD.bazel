@@ -1,16 +1,4 @@
 load(
-    "//go/private/tools:lines_sorted_test.bzl",
-    "lines_sorted_test",
-)
-load(
-    "//go/private/rules:nogo.bzl",
-    "nogo",
-)
-load(
-    "//go/private/rules:info.bzl",
-    "go_info",
-)
-load(
     "//go:def.bzl",
     "TOOLS_NOGO",
 )
@@ -22,8 +10,20 @@ load(
     "go_context_data",
 )
 load(
+    "//go/private/rules:info.bzl",
+    "go_info",
+)
+load(
+    "//go/private/rules:nogo.bzl",
+    "nogo",
+)
+load(
     "//go/private/rules:stdlib.bzl",
     "stdlib",
+)
+load(
+    "//go/private/tools:lines_sorted_test.bzl",
+    "lines_sorted_test",
 )
 
 # gazelle:prefix github.com/bazelbuild/rules_go
@@ -43,6 +43,7 @@ stdlib(
     name = "stdlib",
     cgo_context_data = select({
         "//go/platform:internal_cgo_off": None,
+        "//go/private:is_pure": None,
         "//conditions:default": ":cgo_context_data",
     }),
     visibility = ["//visibility:public"],
@@ -72,6 +73,7 @@ go_context_data(
     name = "go_context_data",
     cgo_context_data = select({
         "//go/platform:internal_cgo_off": None,
+        "//go/private:is_pure": None,
         "//conditions:default": ":cgo_context_data",
     }),
     coverdata = "//go/tools/coverdata",
@@ -95,6 +97,7 @@ cgo_context_data_proxy(
     name = "cgo_context_data_proxy",
     actual = select({
         "//go/platform:internal_cgo_off": None,
+        "//go/private:is_pure": None,
         "//conditions:default": ":cgo_context_data",
     }),
     visibility = ["//visibility:public"],
@@ -112,6 +115,12 @@ go_config(
         # The default is v1.
         "//conditions:default": None,
     }),
+    arm = select({
+        "//go/constraints/arm:5": "5",
+        "//go/constraints/arm:6": "6",
+        "//go/constraints/arm:7": "7",
+        "//conditions:default": None,
+    }),
     cover_format = "//go/config:cover_format",
     # Always include debug symbols with -c dbg.
     debug = select({
@@ -123,6 +132,7 @@ go_config(
     gotags = "//go/config:tags",
     linkmode = "//go/config:linkmode",
     msan = "//go/config:msan",
+    pgoprofile = "//go/config:pgoprofile",
     pure = "//go/config:pure",
     race = "//go/config:race",
     stamp = select({
@@ -130,7 +140,11 @@ go_config(
         "//conditions:default": False,
     }),
     static = "//go/config:static",
-    strip = "//go/config:strip",
+    strip = select({
+        "//go/private:is_strip_always": True,
+        "//go/private:is_strip_sometimes_fastbuild": True,
+        "//conditions:default": False,
+    }),
     visibility = ["//visibility:public"],
 )
 
@@ -164,7 +178,10 @@ filegroup(
     testonly = True,
     srcs = [
         "BUILD.bazel",
+        "MODULE.bazel",
         "WORKSPACE",
+        "go.mod",
+        "go.sum",
         "//extras:all_files",
         "//go:all_files",
         "//proto:all_files",

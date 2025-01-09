@@ -122,6 +122,9 @@ func extractZip(zf *os.File, name, dir, stripPrefix string) (err error) {
 		if err != nil {
 			return err
 		}
+		if outPath == "" {
+			return nil
+		}
 		if strings.HasSuffix(f.Name, "/") {
 			return os.MkdirAll(outPath, 0777)
 		}
@@ -169,6 +172,9 @@ func extractTar(r io.Reader, name, dir, stripPrefix string) (err error) {
 		if err != nil {
 			return err
 		}
+		if outPath == "" {
+			return nil
+		}
 		switch hdr.Typeflag {
 		case tar.TypeDir:
 			return os.MkdirAll(outPath, 0777)
@@ -209,7 +215,8 @@ func extractTar(r io.Reader, name, dir, stripPrefix string) (err error) {
 // point outside dir.
 func extractedPath(dir, stripPrefix, entryName string) (string, error) {
 	if !strings.HasPrefix(entryName, stripPrefix) {
-		return "", fmt.Errorf("entry does not start with prefix %s: %q", stripPrefix, entryName)
+		// Skip the file.
+		return "", nil
 	}
 	entryName = entryName[len(stripPrefix):]
 	if entryName == "" {
@@ -286,16 +293,8 @@ func sha256SumFile(name string) (string, error) {
 // copyFileToMirror uploads a file to the GCS bucket backing mirror.bazel.build.
 // gsutil must be installed, and the user must be authenticated with
 // 'gcloud auth login' and be allowed to write files to the bucket.
+//
+// Deprecated: To mirror, please file a request to Bazel's Github Issue
 func copyFileToMirror(ctx context.Context, path, fileName string) (err error) {
-	dest := "gs://bazel-mirror/" + path
-	defer func() {
-		if err != nil {
-			err = fmt.Errorf("copying file %s to %s: %w", fileName, dest, err)
-		}
-	}()
-
-	// This function shells out to gsutil instead of using
-	// cloud.google.com/go/storage because that package has a million
-	// dependencies.
-	return runForError(ctx, ".", "gsutil", "cp", "-n", fileName, dest)
+	return nil
 }
