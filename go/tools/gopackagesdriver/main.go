@@ -78,7 +78,7 @@ var (
 func run(ctx context.Context, in io.Reader, out io.Writer, args []string) error {
 	queries := args
 
-	fmt.Println("args:", args)
+	fmt.Errof("in: %s, args: %s", in, args)
 
 	request, err := ReadDriverRequest(in)
 	if err != nil {
