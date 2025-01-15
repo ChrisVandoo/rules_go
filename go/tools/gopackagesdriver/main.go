@@ -76,6 +76,8 @@ var (
 )
 
 func run(ctx context.Context, in io.Reader, out io.Writer, args []string) error {
+	return fmt.Errorf("FAIL")
+
 	queries := args
 
 	request, err := ReadDriverRequest(in)
@@ -117,7 +119,7 @@ func run(ctx context.Context, in io.Reader, out io.Writer, args []string) error 
 		return fmt.Errorf("unable to marshal response: %v", err)
 	}
 	_, err = out.Write(data)
-	return fmt.Errorf("FAIL")
+	return err
 }
 
 func main() {
