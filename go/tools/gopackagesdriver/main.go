@@ -19,7 +19,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
 	"os"
 	"runtime"
 	"strings"
@@ -77,15 +76,12 @@ var (
 )
 
 func run(ctx context.Context, in io.Reader, out io.Writer, args []string) error {
-	l := log.New(os.Stderr, "", 0)
-	l.Println("args: %s", args)
 	queries := args
 
 	request, err := ReadDriverRequest(in)
 	if err != nil {
 		return fmt.Errorf("unable to read request: %w", err)
 	}
-	l.Println("request: %s", request)
 
 	bazel, err := NewBazel(ctx, bazelBin, workspaceRoot, buildWorkingDirectory, bazelCommonFlags, bazelStartupFlags)
 	if err != nil {
@@ -120,9 +116,8 @@ func run(ctx context.Context, in io.Reader, out io.Writer, args []string) error 
 	if err != nil {
 		return fmt.Errorf("unable to marshal response: %v", err)
 	}
-	l.Println("data: ", data)
 	_, err = out.Write(data)
-	return err
+	return fmt.Errorf("FAIL")
 }
 
 func main() {
