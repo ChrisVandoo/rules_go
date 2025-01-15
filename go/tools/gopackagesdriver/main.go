@@ -76,8 +76,6 @@ var (
 )
 
 func run(ctx context.Context, in io.Reader, out io.Writer, args []string) error {
-	return fmt.Errorf("FAIL")
-
 	queries := args
 
 	request, err := ReadDriverRequest(in)
