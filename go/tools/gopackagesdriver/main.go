@@ -78,7 +78,7 @@ var (
 func run(ctx context.Context, in io.Reader, out io.Writer, args []string) error {
 	queries := args
 
-	fmt.Fprintln(os.Stderr, "args: ", args)
+	// fmt.Fprintln(os.Stderr, "args: ", args)
 
 	request, err := ReadDriverRequest(in)
 	if err != nil {
@@ -100,7 +100,7 @@ func run(ctx context.Context, in io.Reader, out io.Writer, args []string) error 
 		return fmt.Errorf("unable to lookup package: %w", err)
 	}
 
-	fmt.Fprintf(os.Stderr, "labels in main.go: %s\n", labels)
+	// fmt.Fprintf(os.Stderr, "labels in main.go: %s\n", labels)
 
 	jsonFiles, err := bazelJsonBuilder.Build(ctx, labels, request.Mode)
 	if err != nil {
