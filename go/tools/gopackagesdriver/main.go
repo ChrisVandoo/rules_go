@@ -78,6 +78,8 @@ var (
 func run(ctx context.Context, in io.Reader, out io.Writer, args []string) error {
 	queries := args
 
+	os.Stderr.WriteString("hello world?")
+
 	request, err := ReadDriverRequest(in)
 	if err != nil {
 		return fmt.Errorf("unable to read request: %w", err)
