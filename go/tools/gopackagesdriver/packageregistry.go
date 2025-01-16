@@ -115,7 +115,7 @@ func (pr *PackageRegistry) Match(labels []string) ([]string, []*FlatPackage) {
 					roots[pkg.ID] = struct{}{}
 				}
 			}
-		} else
+		} else {
 			roots[label] = struct{}{}
 			// If an xtest package exists for this package add it to the roots
 			if _, ok := pr.packagesByID[label+"_xtest"]; ok {
