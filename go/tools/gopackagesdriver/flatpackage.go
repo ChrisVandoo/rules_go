@@ -227,9 +227,9 @@ func (fp *FlatPackage) ResolveImports(resolve ResolvePkgFunc, overlays map[strin
 			}
 
 			if _, ok := fp.Imports[imp]; ok {
+				fmt.Fprintf(os.Stderr, "ok? %v\n", ok)
 				continue
 			}
-			fmt.Fprintf(os.Stderr, "ok? %v\n", ok)
 
 			if pkgID := resolve(imp); pkgID != "" {
 				if fp.Imports == nil {
