@@ -112,6 +112,7 @@ func run(ctx context.Context, in io.Reader, out io.Writer, args []string) error 
 	// For file queries (`file=`), this means that the CompiledGoFiles will
 	// include more than the only file being specified.
 	resp := driver.GetResponse(labels)
+	fmt.Fprintf(os.Stderr, "resp: %+v \n", resp)
 	data, err := json.Marshal(resp)
 	if err != nil {
 		return fmt.Errorf("unable to marshal response: %v", err)
