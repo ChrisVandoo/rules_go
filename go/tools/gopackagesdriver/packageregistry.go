@@ -103,6 +103,7 @@ func (pr *PackageRegistry) Match(labels []string) ([]string, []*FlatPackage) {
 	roots := map[string]struct{}{}
 
 	for _, label := range labels {
+		fmt.Fprintf(os.Stderr, "label (init): %s\n", label)
 		// When packagesdriver is ran from rules go, rulesGoRepositoryName will just be @
 		if pr.bazelVersion.isAtLeast(bazelVersion{6, 0, 0}) &&
 			!strings.HasPrefix(label, "@") {

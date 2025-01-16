@@ -100,6 +100,8 @@ func run(ctx context.Context, in io.Reader, out io.Writer, args []string) error 
 		return fmt.Errorf("unable to lookup package: %w", err)
 	}
 
+	fmt.Fprintf(os.Stderr, "labels in main.go: %s\n", labels)
+
 	jsonFiles, err := bazelJsonBuilder.Build(ctx, labels, request.Mode)
 	if err != nil {
 		return fmt.Errorf("unable to build JSON files: %w", err)

@@ -86,6 +86,8 @@ def _go_archive_to_pkg_json(ctx, name, archive):
     args.add("--output-file", pkg_json_file)
     args.use_param_file("@%s")
 
+    print("args in aspect", args)
+
     ctx.actions.run(
         inputs = archive.data.srcs,
         outputs = [pkg_json_file],
