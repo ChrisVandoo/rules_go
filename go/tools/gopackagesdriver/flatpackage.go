@@ -151,6 +151,8 @@ func (fp *FlatPackage) MoveTestFiles() *FlatPackage {
 		return nil
 	}
 
+	fmt.Fprintf(os.Stderr, "xtgf: %s, cxtgf: %s", xtgf, cxtgf)
+
 	newImports := make(map[string]string, len(fp.Imports))
 	for k, v := range fp.Imports {
 		newImports[k] = v
