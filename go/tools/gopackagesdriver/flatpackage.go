@@ -231,6 +231,8 @@ func (fp *FlatPackage) ResolveImports(resolve ResolvePkgFunc, overlays map[strin
 				continue
 			}
 
+			fmt.Fprintf(os.Stderr, "imports ok")
+
 			if pkgID := resolve(imp); pkgID != "" {
 				if fp.Imports == nil {
 					fmt.Fprintf(os.Stderr, "the imports is nil")
