@@ -48,6 +48,8 @@ func NewJSONPackagesDriver(jsonFiles []string, prf PathResolverFunc, bazelVersio
 }
 
 func (b *JSONPackagesDriver) GetResponse(labels []string) *driverResponse {
+	fmt.Fprintf(os.Stderr, "GetResponse() labels: " labels)
+
 	rootPkgs, packages := b.registry.Match(labels)
 
 	return &driverResponse{

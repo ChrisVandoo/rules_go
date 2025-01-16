@@ -37,6 +37,7 @@ func NewPackageRegistry(bazelVersion bazelVersion, pkgs ...*FlatPackage) *Packag
 }
 
 func (pr *PackageRegistry) Add(pkgs ...*FlatPackage) *PackageRegistry {
+	fmt.Fprintf(os.Stderr, "call to Add() pkgs: %+v\n", pkgs)
 	for _, pkg := range pkgs {
 		pr.packagesByID[pkg.ID] = pkg
 
@@ -123,6 +124,9 @@ func (pr *PackageRegistry) Match(labels []string) ([]string, []*FlatPackage) {
 			}
 		}
 	}
+
+	fmt.Fprintf(os.Stderr, "roots, in Match(): %+v\n", roots)
+	fmt.Fprintf(os.Stderr, "packagesByID: %+v\n", pr.packagesByID)
 
 	walkedPackages := map[string]*FlatPackage{}
 	retRoots := make([]string, 0, len(roots))
