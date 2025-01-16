@@ -189,6 +189,7 @@ func parseArchiveAndOutputPath(arguments []string, archive *archive) (string, er
 		WithArg("--data-srcs", func(value string) {
 			if strings.HasSuffix(value, ".go") {
 				archive.GoFiles = append(archive.GoFiles, value)
+				archive.CompiledGoFiles = append(archive.CompiledGoFiles, value)
 			} else {
 				archive.OtherFiles = append(archive.OtherFiles, value)
 			}
