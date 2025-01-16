@@ -211,12 +211,14 @@ func (fp *FlatPackage) ResolveImports(resolve ResolvePkgFunc, overlays map[strin
 		}
 
 		for _, rawImport := range f.Imports {
-			fmt.Fprintf(os.Stderr, "rawImport: %+v\n, path: ", rawImport, rawImport.path)
+			fmt.Fprintf(os.Stderr, "rawImport: %+v\n", rawImport)
 
 			imp, err := strconv.Unquote(rawImport.Path.Value)
 			if err != nil {
 				continue
 			}
+
+			fmt.Fprintf(os.Stderr, "imp: %s\n", imp)
 			// We don't handle CGo for now
 			if imp == "C" {
 				continue
