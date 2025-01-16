@@ -189,6 +189,8 @@ func (fp *FlatPackage) ResolveImports(resolve ResolvePkgFunc, overlays map[strin
 	fmt.Fprintf(os.Stderr, "fp.compiledGoFiles: %+v\n", fp.CompiledGoFiles)
 
 	for _, file := range fp.CompiledGoFiles {
+		fmt.Fprintf(os.Stderr, "file: %s\n", file)
+
 		// Only assign overlayContent when an overlay for the file exists, since ParseFile checks by type.
 		// If overlay is assigned directly from the map, it will have []byte as type
 		// Empty []byte types are parsed into io.EOF
@@ -197,6 +199,8 @@ func (fp *FlatPackage) ResolveImports(resolve ResolvePkgFunc, overlays map[strin
 			overlayReader = bytes.NewReader(content)
 		}
 		f, err := parser.ParseFile(fset, file, overlayReader, parser.ImportsOnly)
+
+		fmt.Fprintf(os.Stderr, "f: %+v\n", f)
 		if err != nil {
 			return err
 		}
@@ -206,6 +210,8 @@ func (fp *FlatPackage) ResolveImports(resolve ResolvePkgFunc, overlays map[strin
 		}
 
 		for _, rawImport := range f.Imports {
+			fmt.Fprintf(os.Stderr, "rawImport: %+v\n", rawImport)
+
 			imp, err := strconv.Unquote(rawImport.Path.Value)
 			if err != nil {
 				continue
