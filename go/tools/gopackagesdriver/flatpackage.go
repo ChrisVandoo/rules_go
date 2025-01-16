@@ -187,6 +187,7 @@ func (fp *FlatPackage) ResolveImports(resolve ResolvePkgFunc, overlays map[strin
 
 	fset := token.NewFileSet()
 	fmt.Fprintf(os.Stderr, "fp.compiledGoFiles: %+v\n", fp.CompiledGoFiles)
+	fmt.Fprintf(os.Stderr, "fp.Imports: %+v\n", fp.Imports)
 
 	for _, file := range fp.CompiledGoFiles {
 		fmt.Fprintf(os.Stderr, "file: %s\n", file)
@@ -210,7 +211,7 @@ func (fp *FlatPackage) ResolveImports(resolve ResolvePkgFunc, overlays map[strin
 		}
 
 		for _, rawImport := range f.Imports {
-			fmt.Fprintf(os.Stderr, "rawImport: %+v\n", rawImport)
+			fmt.Fprintf(os.Stderr, "rawImport: %+v\n, path: ", rawImport, rawImport.path)
 
 			imp, err := strconv.Unquote(rawImport.Path.Value)
 			if err != nil {
