@@ -68,7 +68,7 @@ def _go_archive_to_pkg_json(ctx, name, archive):
     # Build the args in a config file.
     args = ctx.actions.args()
     print("archive.data.label: ", str(archive.data.label))
-    args.add("--id", archive.data.label)
+    args.add("--id", str(archive.data.label))
     args.add("--pkg-path", archive.data.importpath)
     args.add("--export-file", archive.data.export_file)
 
