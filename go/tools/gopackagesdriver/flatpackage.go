@@ -186,6 +186,7 @@ func (fp *FlatPackage) ResolveImports(resolve ResolvePkgFunc, overlays map[strin
 	}
 
 	fset := token.NewFileSet()
+	fmt.Fprintf(os.Stderr, "fp.compiledGoFiles: %+v\n", fp.CompiledGoFiles)
 
 	for _, file := range fp.CompiledGoFiles {
 		// Only assign overlayContent when an overlay for the file exists, since ParseFile checks by type.

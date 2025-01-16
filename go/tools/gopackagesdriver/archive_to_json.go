@@ -190,6 +190,7 @@ func parseArchiveAndOutputPath(arguments []string, archive *archive) (string, er
 			if strings.HasSuffix(value, ".go") {
 				archive.GoFiles = append(archive.GoFiles, value)
 				archive.CompiledGoFiles = append(archive.CompiledGoFiles, value)
+				fmt.Fprintf(os.Stderr, "cgf: %s\n", value)
 			} else {
 				archive.OtherFiles = append(archive.OtherFiles, value)
 			}

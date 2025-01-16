@@ -37,16 +37,16 @@ func NewPackageRegistry(bazelVersion bazelVersion, pkgs ...*FlatPackage) *Packag
 }
 
 func (pr *PackageRegistry) Add(pkgs ...*FlatPackage) *PackageRegistry {
-	fmt.Fprintf(os.Stderr, "call to Add() pkgs... ")
+	// fmt.Fprintf(os.Stderr, "call to Add() pkgs... ")
 	for _, pkg := range pkgs {
-		fmt.Fprintf(os.Stderr, "%+v ", pkg)
+		// fmt.Fprintf(os.Stderr, "%+v ", pkg)
 		pr.packagesByID[pkg.ID] = pkg
 
 		if pkg.IsStdlib() {
 			pr.stdlib[pkg.PkgPath] = pkg.ID
 		}
 	}
-	fmt.Fprintf(os.Stderr, "\n")
+	// fmt.Fprintf(os.Stderr, "\n")
 	return pr
 }
 
@@ -103,7 +103,7 @@ func (pr *PackageRegistry) Match(labels []string) ([]string, []*FlatPackage) {
 	roots := map[string]struct{}{}
 
 	for _, label := range labels {
-		fmt.Fprintf(os.Stderr, "label (init): %s\n", label)
+		// fmt.Fprintf(os.Stderr, "label (init): %s\n", label)
 		// When packagesdriver is ran from rules go, rulesGoRepositoryName will just be @
 		if pr.bazelVersion.isAtLeast(bazelVersion{6, 0, 0}) &&
 			!strings.HasPrefix(label, "@") {
@@ -128,8 +128,8 @@ func (pr *PackageRegistry) Match(labels []string) ([]string, []*FlatPackage) {
 		}
 	}
 
-	fmt.Fprintf(os.Stderr, "roots, in Match(): %+v\n", roots)
-	fmt.Fprintf(os.Stderr, "packagesByID: %+v\n", pr.packagesByID)
+	// fmt.Fprintf(os.Stderr, "roots, in Match(): %+v\n", roots)
+	// fmt.Fprintf(os.Stderr, "packagesByID: %+v\n", pr.packagesByID)
 
 	walkedPackages := map[string]*FlatPackage{}
 	retRoots := make([]string, 0, len(roots))
