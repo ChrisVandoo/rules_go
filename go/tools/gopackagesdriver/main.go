@@ -78,7 +78,7 @@ var (
 func run(ctx context.Context, in io.Reader, out io.Writer, args []string) error {
 	queries := args
 
-	os.Stderr.WriteString("hello world?")
+	fmt.Fprintln(os.Stderr, "args: ", args)
 
 	request, err := ReadDriverRequest(in)
 	if err != nil {
@@ -114,6 +114,9 @@ func run(ctx context.Context, in io.Reader, out io.Writer, args []string) error 
 	// For file queries (`file=`), this means that the CompiledGoFiles will
 	// include more than the only file being specified.
 	resp := driver.GetResponse(labels)
+
+	fmt.Fprintln(os.Stderr, "resp (from driver): ", resp)
+
 	data, err := json.Marshal(resp)
 	if err != nil {
 		return fmt.Errorf("unable to marshal response: %v", err)
