@@ -65,6 +65,8 @@ def format_key_value_arg(key, value, delimiter = "="):
 def _go_archive_to_pkg_json(ctx, name, archive):
     pkg_json_file = ctx.actions.declare_file(name + ".pkg.json")
 
+    print("archive.data: ", archive.data)
+
     # Build the args in a config file.
     args = ctx.actions.args()
     args.add("--id", archive.data.label)
