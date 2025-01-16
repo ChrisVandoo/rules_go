@@ -234,8 +234,9 @@ func (fp *FlatPackage) ResolveImports(resolve ResolvePkgFunc, overlays map[strin
 			fmt.Fprintf(os.Stderr, "imports ok")
 
 			if pkgID := resolve(imp); pkgID != "" {
+				// Make a map if it is nil because sometimes it seems to be nil...
 				if fp.Imports == nil {
-					fmt.Fprintf(os.Stderr, "the imports is nil")
+					fp.Imports = make(map[string]string)
 				}
 				fp.Imports[imp] = pkgID
 			}
