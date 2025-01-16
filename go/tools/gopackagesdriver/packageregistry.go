@@ -37,14 +37,16 @@ func NewPackageRegistry(bazelVersion bazelVersion, pkgs ...*FlatPackage) *Packag
 }
 
 func (pr *PackageRegistry) Add(pkgs ...*FlatPackage) *PackageRegistry {
-	fmt.Fprintf(os.Stderr, "call to Add() pkgs: %+v\n", pkgs)
+	fmt.Fprintf(os.Stderr, "call to Add() pkgs... ")
 	for _, pkg := range pkgs {
+		fmt.Fprintf(os.Stderr, "%+v ", pkg)
 		pr.packagesByID[pkg.ID] = pkg
 
 		if pkg.IsStdlib() {
 			pr.stdlib[pkg.PkgPath] = pkg.ID
 		}
 	}
+	fmt.Fprintf(os.Stderr, "\n")
 	return pr
 }
 
