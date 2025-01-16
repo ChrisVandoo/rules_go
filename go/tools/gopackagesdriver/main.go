@@ -115,7 +115,7 @@ func run(ctx context.Context, in io.Reader, out io.Writer, args []string) error 
 	// include more than the only file being specified.
 	resp := driver.GetResponse(labels)
 
-	fmt.Fprintln(os.Stderr, "resp (from driver): ", resp)
+	fmt.Fprintf(os.Stderr, "resp (from driver): %+v\n", resp)
 
 	data, err := json.Marshal(resp)
 	if err != nil {
