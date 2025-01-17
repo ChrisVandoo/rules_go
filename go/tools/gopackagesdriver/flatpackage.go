@@ -151,8 +151,6 @@ func (fp *FlatPackage) MoveTestFiles() *FlatPackage {
 		return nil
 	}
 
-	fmt.Fprintf(os.Stderr, "xtgf: %s, cxtgf: %s", xtgf, cxtgf)
-
 	newImports := make(map[string]string, len(fp.Imports))
 	for k, v := range fp.Imports {
 		newImports[k] = v
@@ -188,11 +186,8 @@ func (fp *FlatPackage) ResolveImports(resolve ResolvePkgFunc, overlays map[strin
 	}
 
 	fset := token.NewFileSet()
-	fmt.Fprintf(os.Stderr, "fp.compiledGoFiles: %+v\n", fp.CompiledGoFiles)
-	fmt.Fprintf(os.Stderr, "fp.Imports: %+v\n", fp.Imports)
 
 	for _, file := range fp.CompiledGoFiles {
-		fmt.Fprintf(os.Stderr, "file: %s\n", file)
 
 		// Only assign overlayContent when an overlay for the file exists, since ParseFile checks by type.
 		// If overlay is assigned directly from the map, it will have []byte as type
@@ -202,8 +197,6 @@ func (fp *FlatPackage) ResolveImports(resolve ResolvePkgFunc, overlays map[strin
 			overlayReader = bytes.NewReader(content)
 		}
 		f, err := parser.ParseFile(fset, file, overlayReader, parser.ImportsOnly)
-
-		fmt.Fprintf(os.Stderr, "f: %+v\n", f)
 		if err != nil {
 			return err
 		}
@@ -213,25 +206,20 @@ func (fp *FlatPackage) ResolveImports(resolve ResolvePkgFunc, overlays map[strin
 		}
 
 		for _, rawImport := range f.Imports {
-			fmt.Fprintf(os.Stderr, "rawImport: %+v\n", rawImport)
 
 			imp, err := strconv.Unquote(rawImport.Path.Value)
 			if err != nil {
 				continue
 			}
 
-			fmt.Fprintf(os.Stderr, "imp: %s\n", imp)
 			// We don't handle CGo for now
 			if imp == "C" {
 				continue
 			}
 
 			if _, ok := fp.Imports[imp]; ok {
-				fmt.Fprintf(os.Stderr, "ok? %v\n", ok)
 				continue
 			}
-
-			fmt.Fprintf(os.Stderr, "imports ok")
 
 			if pkgID := resolve(imp); pkgID != "" {
 				// Make a map if it is nil because sometimes it seems to be nil...
