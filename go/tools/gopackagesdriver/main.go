@@ -100,8 +100,6 @@ func run(ctx context.Context, in io.Reader, out io.Writer, args []string) error 
 		return fmt.Errorf("unable to lookup package: %w", err)
 	}
 
-	// fmt.Fprintf(os.Stderr, "labels in main.go: %s\n", labels)
-
 	jsonFiles, err := bazelJsonBuilder.Build(ctx, labels, request.Mode)
 	if err != nil {
 		return fmt.Errorf("unable to build JSON files: %w", err)
@@ -116,9 +114,6 @@ func run(ctx context.Context, in io.Reader, out io.Writer, args []string) error 
 	// For file queries (`file=`), this means that the CompiledGoFiles will
 	// include more than the only file being specified.
 	resp := driver.GetResponse(labels)
-
-	// fmt.Fprintf(os.Stderr, "resp (from driver): %+v\n", resp)
-
 	data, err := json.Marshal(resp)
 	if err != nil {
 		return fmt.Errorf("unable to marshal response: %v", err)
